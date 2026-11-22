@@ -1325,54 +1325,54 @@ if user_query:
 
                         answer = document_answer
 
-                    if sources:
+                    # if sources:
 
-                        # st.markdown("### 📚 Referensi Dokumen")
+                    #     # st.markdown("### 📚 Referensi Dokumen")
 
-                        # for source in sources:
+                    #     # for source in sources:
 
-                        #     metadata = source.metadata
+                    #     #     metadata = source.metadata
 
-                        #     if metadata.get("file_type") == "Excel":
+                    #     #     if metadata.get("file_type") == "Excel":
 
-                        #         st.caption(
-                        #             f"Excel: {metadata.get('source')} | "
-                        #             f"Sheet: {metadata.get('sheet')} | "
-                        #             f"Baris: {metadata.get('row')}"
-                        #         )
+                    #     #         st.caption(
+                    #     #             f"Excel: {metadata.get('source')} | "
+                    #     #             f"Sheet: {metadata.get('sheet')} | "
+                    #     #             f"Baris: {metadata.get('row')}"
+                    #     #         )
 
-                        #     else:
+                    #     #     else:
 
-                        #         st.caption(
-                        #             f"PDF: {metadata.get('source')} | "
-                        #             f"Halaman: {metadata.get('page', '-')}"
-                        #         )
+                    #     #         st.caption(
+                    #     #             f"PDF: {metadata.get('source')} | "
+                    #     #             f"Halaman: {metadata.get('page', '-')}"
+                    #     #         )
 
-                        unique_sources = get_unique_sources(sources)
+                    #     unique_sources = get_unique_sources(sources)
 
-                        st.markdown("### 📚 Referensi Dokumen")
+                    #     st.markdown("### 📚 Referensi Dokumen")
 
-                        for metadata in unique_sources:
+                    #     for metadata in unique_sources:
 
-                            if metadata.get("file_type") == "Excel":
+                    #         if metadata.get("file_type") == "Excel":
 
-                                st.caption(
-                                    f"Excel: {metadata.get('source')} | "
-                                    f"Sheet: {metadata.get('sheet')} | "
-                                    f"Baris: {metadata.get('row')}"
-                                )
+                    #             st.caption(
+                    #                 f"Excel: {metadata.get('source')} | "
+                    #                 f"Sheet: {metadata.get('sheet')} | "
+                    #                 f"Baris: {metadata.get('row')}"
+                    #             )
 
-                            else:
+                    #         else:
 
-                                page = metadata.get("page")
+                    #             page = metadata.get("page")
 
-                                # Nomor halaman PDF dimulai dari 1
-                                page_number = page + 1 if page is not None else "-"
+                    #             # Nomor halaman PDF dimulai dari 1
+                    #             page_number = page + 1 if page is not None else "-"
 
-                                st.caption(
-                                    f"PDF: {metadata.get('source')} | "
-                                    f"Halaman: {page_number}"
-                                )
+                    #             st.caption(
+                    #                 f"PDF: {metadata.get('source')} | "
+                    #                 f"Halaman: {page_number}"
+                    #             )
 
             # -----------------------------
             # DISPLAY ANSWER
