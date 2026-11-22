@@ -462,6 +462,41 @@ def retrieve_documents(vectorstore, query, k=8):
 
     return "\n\n".join(context), results
 
+def get_unique_sources(sources):
+
+    unique_sources = []
+    seen = set()
+
+    for doc in sources:
+
+        metadata = doc.metadata
+
+        file_type = metadata.get("file_type", "PDF")
+        source = metadata.get("source", "Unknown")
+
+        if file_type == "Excel":
+
+            key = (
+                "Excel",
+                source,
+                metadata.get("sheet"),
+                metadata.get("row")
+            )
+
+        else:
+
+            key = (
+                "PDF",
+                source,
+                metadata.get("page")
+            )
+
+        if key not in seen:
+
+            seen.add(key)
+            unique_sources.append(metadata)
+
+    return unique_sources
 
 # =========================================================
 # 7. ASK OLLAMA FOR ANALYSIS PLAN
@@ -1165,6 +1200,7 @@ if user_query:
 
         answer = ""
         result_table = None
+        answer_displayed = False
 
         try:
             
@@ -1204,6 +1240,8 @@ if user_query:
                     )
 
                     st.success(answer)
+                    
+                    answer_displayed = True
 
                     st.session_state.messages.append({
                         "role": "assistant",
@@ -1215,6 +1253,8 @@ if user_query:
                     answer = f"PO {po_number} tidak ditemukan di Excel."
 
                     st.warning(answer)
+
+                    answer_displayed = True
 
                     st.session_state.messages.append({
                         "role": "assistant",
@@ -1288,6 +1328,8 @@ if user_query:
                             )
                         )
 
+                        answer_displayed = True
+
                         st.markdown("### 📊 Hasil Analisis Excel")
 
                         st.dataframe(
@@ -1325,6 +1367,8 @@ if user_query:
                             )
                         )
 
+                        answer_displayed = True
+
                     if source_type == "both":
 
                         answer += (
@@ -1338,11 +1382,32 @@ if user_query:
 
                     if sources:
 
+                        # st.markdown("### 📚 Referensi Dokumen")
+
+                        # for source in sources:
+
+                        #     metadata = source.metadata
+
+                        #     if metadata.get("file_type") == "Excel":
+
+                        #         st.caption(
+                        #             f"Excel: {metadata.get('source')} | "
+                        #             f"Sheet: {metadata.get('sheet')} | "
+                        #             f"Baris: {metadata.get('row')}"
+                        #         )
+
+                        #     else:
+
+                        #         st.caption(
+                        #             f"PDF: {metadata.get('source')} | "
+                        #             f"Halaman: {metadata.get('page', '-')}"
+                        #         )
+
+                        unique_sources = get_unique_sources(sources)
+
                         st.markdown("### 📚 Referensi Dokumen")
 
-                        for source in sources:
-
-                            metadata = source.metadata
+                        for metadata in unique_sources:
 
                             if metadata.get("file_type") == "Excel":
 
@@ -1354,17 +1419,36 @@ if user_query:
 
                             else:
 
+                                page = metadata.get("page")
+
+                                # Nomor halaman PDF dimulai dari 1
+                                page_number = page + 1 if page is not None else "-"
+
                                 st.caption(
                                     f"PDF: {metadata.get('source')} | "
-                                    f"Halaman: {metadata.get('page', '-')}"
+                                    f"Halaman: {page_number}"
                                 )
 
             # -----------------------------
             # DISPLAY ANSWER
             # -----------------------------
 
-            st.markdown(answer)
+            # st.markdown(answer)
 
+            # st.session_state.messages.append({
+            #     "role": "assistant",
+            #     "content": answer,
+            #     "table": (
+            #         result_table.to_dict(orient="records")
+            #         if result_table is not None
+            #         else None
+            #     )
+            # })
+            if not answer_displayed and answer:
+
+                st.markdown(answer)
+
+            # Simpan jawaban satu kali ke chat history
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": answer,
