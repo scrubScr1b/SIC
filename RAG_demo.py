@@ -50,7 +50,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # =========================================================
 
 st.set_page_config(
-    page_title="ORBIT - Admin Dokumen",
+    page_title="ORBIT",
     page_icon="📁",
     layout="wide"
 )
@@ -414,18 +414,13 @@ def index_documents(vectorstore, chunks):
 # 6. RAG RETRIEVAL
 # =========================================================
 
-def retrieve_documents(vectorstore, query, k=8):
-
-    # results = vectorstore.similarity_search(
-    #     query,
-    #     k=k
-    # )
+def retrieve_documents(vectorstore, query, k=15):
     
     retriever = vectorstore.as_retriever(
     search_type="mmr",
     search_kwargs={
         "k": k,
-        "fetch_k": 30,
+        "fetch_k": 60,
         "lambda_mult": 0.7
         }
     )
@@ -499,98 +494,48 @@ def get_unique_sources(sources):
     return unique_sources
 
 # =========================================================
-# 7. ASK OLLAMA FOR ANALYSIS PLAN
+# CHECKING INDEXED DOCUMENTS
 # =========================================================
 
-# def create_analysis_plan(question, excel_data):
+# def check_indexed_documents(vectorstore):
 
-#     dataset_information = []
-
-#     for dataset_key, df in excel_data.items():
-
-#         sample = df.head(3).fillna("").astype(str)
-
-#         dataset_information.append({
-#             "dataset": dataset_key,
-#             "columns": list(df.columns),
-#             "sample_data": sample.to_dict(orient="records")
-#         })
-
-#     prompt = f"""
-# Anda adalah asisten admin dan data analyst.
-
-# Tentukan apakah pertanyaan pengguna membutuhkan:
-# - excel: analisis menggunakan Pandas
-# - document: pencarian dokumen PDF menggunakan RAG
-# - both: membutuhkan Excel dan dokumen PDF
-
-# Data Excel yang tersedia:
-# {json.dumps(dataset_information, ensure_ascii=False, default=str)}
-
-# Pertanyaan pengguna:
-# {question}
-
-# Jika membutuhkan analisis Excel, buat rencana operasi.
-# Jangan membuat kode Python.
-
-# Gunakan JSON dengan format berikut:
-
-# {{
-#     "source": "excel",
-#     "dataset": "nama dataset yang dipilih",
-#     "task": "sum",
-#     "column": "nama kolom",
-#     "group_by": [],
-#     "filters": [],
-#     "sort_by": null,
-#     "ascending": false,
-#     "top_n": 10
-# }}
-
-# Pilihan source:
-# excel, document, both
-
-# Pilihan task:
-# sum, mean, count, count_rows, min, max,
-# groupby_sum, groupby_mean, groupby_count,
-# top_n, describe, list
-
-# Filter:
-# [
-#     {{
-#         "column": "nama kolom",
-#         "operator": "contains",
-#         "value": "nilai"
-#     }}
-# ]
-
-# Operator filter yang diperbolehkan:
-# contains, equals, not_equals, gt, gte, lt, lte
-
-# Aturan:
-# 1. Gunakan nama kolom dan dataset yang benar-benar tersedia.
-# 2. Untuk pertanyaan total nilai, gunakan sum.
-# 3. Untuk pertanyaan jumlah data/baris, gunakan count_rows.
-# 4. Untuk rekap per kategori, gunakan groupby_sum atau groupby_count.
-# 5. Untuk data terbesar atau tertinggi, gunakan top_n.
-# 6. Jika pertanyaan tidak berkaitan dengan Excel, pilih document.
-# 7. Jika membutuhkan Excel sekaligus PDF, pilih both.
-# 8. Jangan mengarang nama kolom.
-# 9. Keluarkan JSON saja.
-# """
-
-#     response = chat(
-#         model=LLM_MODEL,
-#         format="json",
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": prompt
-#             }
-#         ]
+#     all_data = vectorstore.get(
+#         include=["metadatas"]
 #     )
 
-#     return json.loads(response.message.content)
+#     sources = set()
+
+#     for metadata in all_data["metadatas"]:
+#         if metadata:
+#             sources.add(metadata.get("source", "Unknown"))
+
+#     result = {
+#         "total_chunks": len(all_data["metadatas"]),
+#         "total_files": len(sources),
+#         "files": sorted(sources)
+#     }
+
+#     return result
+
+# vectorstore = get_vectorstore()
+
+# index_info = check_indexed_documents(vectorstore)
+
+# st.sidebar.markdown("### 📚 Database ORBIT")
+
+# st.sidebar.metric(
+#     "Total Indexed Files",
+#     index_info["total_files"]
+# )
+
+# st.sidebar.metric(
+#     "Total Indexed Chunks",
+#     index_info["total_chunks"]
+# )
+
+# with st.sidebar.expander("Lihat daftar dokumen"):
+#     for file in index_info["files"]:
+#         st.write(file)
 
 # =========================================================
 # 4. CREATE ANALYSIS PLAN USING KONEKTIKA
@@ -1105,9 +1050,9 @@ def search_po(po_number, excel_data):
 # 10. STREAMLIT INTERFACE
 # =========================================================
 
-st.title("📁 ORBIT - Operational Records & Business Intelligence Technology")
+st.title("🛰️ ORBIT AI AGENT")
 st.caption(
-    "Asisten AI untuk pencarian dokumen PDF."
+    "Operational Records & Business Intelligence Technology - Asisten AI untuk pencarian & analisa dokumen PDF"
 )
 
 with st.spinner("Membaca dokumen PDF"):
@@ -1183,7 +1128,7 @@ for message in st.session_state.messages:
             )
 
 user_query = st.chat_input(
-    "Tanyakan dokumen apapun...."
+    "Tanyakan ORBIT...."
 )
 
 if user_query:
@@ -1347,12 +1292,12 @@ if user_query:
 
                 if source_type in ["document", "both"]:
 
-                    with st.spinner("Mencari informasi dokumen..."):
+                    with st.spinner("Mencari informasi..."):
 
                         context, sources = retrieve_documents(
                             vectorstore,
                             user_query,
-                            k=8
+                            k=15
                         )
 
 
