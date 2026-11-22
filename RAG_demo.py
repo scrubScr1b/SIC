@@ -7,21 +7,50 @@ import pandas as pd
 import streamlit as st
 import re
 
-from ollama import chat
+# from ollama import chat
 
 from langchain_core.documents import Document
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_ollama import OllamaEmbeddings
+# from langchain_ollama import OllamaEmbeddings
 from langchain_chroma import Chroma
+
+from openai import OpenAI
+from langchain_huggingface import HuggingFaceEmbeddings
 
 
 # =========================================================
 # 1. CONFIGURATION
 # =========================================================
 
+# st.set_page_config(
+#     page_title="ORBIT - Admin Dokumen",
+#     page_icon="📁",
+#     layout="wide"
+# )
+
+# DATA_DIR = "Data"
+# CHROMA_DIR = "chroma_db"
+
+# LLM_MODEL = "llama3.2:latest"
+# EMBEDDING_MODEL = "nomic-embed-text"
+
+# COLLECTION_NAME = "ORBIT_admin_documents"
+
+# # CONFIGURATION
+
+# CHUNK_SIZE = 1000
+# CHUNK_OVERLAP = 150
+
+# # CHUNK_SIZE = 2500
+# # CHUNK_OVERLAP = 300
+
+# =========================================================
+# 1. CONFIGURATION
+# =========================================================
+
 st.set_page_config(
-    page_title="Yanto - Admin Dokumen",
+    page_title="ORBIT - Admin Dokumen",
     page_icon="📁",
     layout="wide"
 )
@@ -29,19 +58,84 @@ st.set_page_config(
 DATA_DIR = "Data"
 CHROMA_DIR = "chroma_db"
 
-LLM_MODEL = "llama3.2:latest"
-EMBEDDING_MODEL = "nomic-embed-text"
+COLLECTION_NAME = "ORBIT_admin_documents"
 
-COLLECTION_NAME = "yanto_admin_documents"
+# KONEKTIKA CONFIGURATION
+LLM_MODEL = "konektika-thinking"
+KONEKTIKA_BASE_URL = "https://konektika.web.id/v1"
 
-# CONFIGURATION
+# api_key = st.secrets.get(
+#     "KONEKTIKA_API_KEY",
+#     os.getenv("KONEKTIKA_API_KEY")
+# )
+
+# Ambil API Key dari Streamlit Secrets atau Environment Variable
+try:
+    api_key = st.secrets["KONEKTIKA_API_KEY"]
+except (KeyError, FileNotFoundError):
+    api_key = os.getenv("KONEKTIKA_API_KEY")
+
+if not api_key:
+    st.error("KONEKTIKA_API_KEY belum dikonfigurasi.")
+    st.stop()
+
+client = OpenAI(
+    api_key=api_key,
+    base_url="https://konektika.web.id/v1"
+)
+
+if not api_key:
+    st.error("KONEKTIKA_API_KEY belum dikonfigurasi.")
+    st.stop()
+
+client = OpenAI(
+    api_key=api_key,
+    base_url=KONEKTIKA_BASE_URL
+)
+
+# EMBEDDING CONFIGURATION
+EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 150
 
-# CHUNK_SIZE = 2500
-# CHUNK_OVERLAP = 300
+# =========================================================
+# 2. KONEKTIKA LLM FUNCTIONS
+# =========================================================
 
+def ask_konektika(messages, response_format=None):
+
+    params = {
+        "model": LLM_MODEL,
+        "messages": messages,
+        "stream": False
+    }
+
+    if response_format:
+        params["response_format"] = response_format
+
+    response = client.chat.completions.create(**params)
+
+    return response.choices[0].message.content or ""
+
+
+def stream_konektika(messages):
+
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=messages,
+        stream=True
+    )
+
+    for chunk in response:
+
+        if not chunk.choices:
+            continue
+
+        content = chunk.choices[0].delta.content
+
+        if content:
+            yield content
 
 # =========================================================
 # 2. LOAD PDF AND EXCEL FILES
@@ -234,11 +328,28 @@ def create_chunks(pdf_docs, excel_docs):
 # 5. CREATE / UPDATE CHROMA DATABASE
 # =========================================================
 
+# @st.cache_resource(show_spinner=False)
+# def get_vectorstore():
+
+#     embeddings = OllamaEmbeddings(
+#         model=EMBEDDING_MODEL
+#     )
+
+#     vectorstore = Chroma(
+#         collection_name=COLLECTION_NAME,
+#         embedding_function=embeddings,
+#         persist_directory=CHROMA_DIR
+#     )
+
+#     return vectorstore
+
 @st.cache_resource(show_spinner=False)
 def get_vectorstore():
 
-    embeddings = OllamaEmbeddings(
-        model=EMBEDDING_MODEL
+    embeddings = HuggingFaceEmbeddings(
+        model_name=EMBEDDING_MODEL,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True}
     )
 
     vectorstore = Chroma(
@@ -356,6 +467,100 @@ def retrieve_documents(vectorstore, query, k=8):
 # 7. ASK OLLAMA FOR ANALYSIS PLAN
 # =========================================================
 
+# def create_analysis_plan(question, excel_data):
+
+#     dataset_information = []
+
+#     for dataset_key, df in excel_data.items():
+
+#         sample = df.head(3).fillna("").astype(str)
+
+#         dataset_information.append({
+#             "dataset": dataset_key,
+#             "columns": list(df.columns),
+#             "sample_data": sample.to_dict(orient="records")
+#         })
+
+#     prompt = f"""
+# Anda adalah asisten admin dan data analyst.
+
+# Tentukan apakah pertanyaan pengguna membutuhkan:
+# - excel: analisis menggunakan Pandas
+# - document: pencarian dokumen PDF menggunakan RAG
+# - both: membutuhkan Excel dan dokumen PDF
+
+# Data Excel yang tersedia:
+# {json.dumps(dataset_information, ensure_ascii=False, default=str)}
+
+# Pertanyaan pengguna:
+# {question}
+
+# Jika membutuhkan analisis Excel, buat rencana operasi.
+# Jangan membuat kode Python.
+
+# Gunakan JSON dengan format berikut:
+
+# {{
+#     "source": "excel",
+#     "dataset": "nama dataset yang dipilih",
+#     "task": "sum",
+#     "column": "nama kolom",
+#     "group_by": [],
+#     "filters": [],
+#     "sort_by": null,
+#     "ascending": false,
+#     "top_n": 10
+# }}
+
+# Pilihan source:
+# excel, document, both
+
+# Pilihan task:
+# sum, mean, count, count_rows, min, max,
+# groupby_sum, groupby_mean, groupby_count,
+# top_n, describe, list
+
+# Filter:
+# [
+#     {{
+#         "column": "nama kolom",
+#         "operator": "contains",
+#         "value": "nilai"
+#     }}
+# ]
+
+# Operator filter yang diperbolehkan:
+# contains, equals, not_equals, gt, gte, lt, lte
+
+# Aturan:
+# 1. Gunakan nama kolom dan dataset yang benar-benar tersedia.
+# 2. Untuk pertanyaan total nilai, gunakan sum.
+# 3. Untuk pertanyaan jumlah data/baris, gunakan count_rows.
+# 4. Untuk rekap per kategori, gunakan groupby_sum atau groupby_count.
+# 5. Untuk data terbesar atau tertinggi, gunakan top_n.
+# 6. Jika pertanyaan tidak berkaitan dengan Excel, pilih document.
+# 7. Jika membutuhkan Excel sekaligus PDF, pilih both.
+# 8. Jangan mengarang nama kolom.
+# 9. Keluarkan JSON saja.
+# """
+
+#     response = chat(
+#         model=LLM_MODEL,
+#         format="json",
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": prompt
+#             }
+#         ]
+#     )
+
+#     return json.loads(response.message.content)
+
+# =========================================================
+# 4. CREATE ANALYSIS PLAN USING KONEKTIKA
+# =========================================================
+
 def create_analysis_plan(question, excel_data):
 
     dataset_information = []
@@ -375,8 +580,8 @@ Anda adalah asisten admin dan data analyst.
 
 Tentukan apakah pertanyaan pengguna membutuhkan:
 - excel: analisis menggunakan Pandas
-- document: pencarian dokumen PDF menggunakan RAG
-- both: membutuhkan Excel dan dokumen PDF
+- document: pencarian dokumen menggunakan RAG
+- both: membutuhkan Excel dan dokumen
 
 Data Excel yang tersedia:
 {json.dumps(dataset_information, ensure_ascii=False, default=str)}
@@ -384,10 +589,10 @@ Data Excel yang tersedia:
 Pertanyaan pengguna:
 {question}
 
-Jika membutuhkan analisis Excel, buat rencana operasi.
+Buat rencana operasi Excel jika diperlukan.
 Jangan membuat kode Python.
 
-Gunakan JSON dengan format berikut:
+Gunakan JSON dengan format:
 
 {{
     "source": "excel",
@@ -409,33 +614,22 @@ sum, mean, count, count_rows, min, max,
 groupby_sum, groupby_mean, groupby_count,
 top_n, describe, list
 
-Filter:
-[
-    {{
-        "column": "nama kolom",
-        "operator": "contains",
-        "value": "nilai"
-    }}
-]
-
-Operator filter yang diperbolehkan:
+Operator filter:
 contains, equals, not_equals, gt, gte, lt, lte
 
 Aturan:
-1. Gunakan nama kolom dan dataset yang benar-benar tersedia.
-2. Untuk pertanyaan total nilai, gunakan sum.
-3. Untuk pertanyaan jumlah data/baris, gunakan count_rows.
-4. Untuk rekap per kategori, gunakan groupby_sum atau groupby_count.
-5. Untuk data terbesar atau tertinggi, gunakan top_n.
-6. Jika pertanyaan tidak berkaitan dengan Excel, pilih document.
-7. Jika membutuhkan Excel sekaligus PDF, pilih both.
+1. Gunakan dataset dan kolom yang tersedia.
+2. Total nilai menggunakan sum.
+3. Jumlah baris menggunakan count_rows.
+4. Rekap kategori menggunakan groupby_sum atau groupby_count.
+5. Nilai tertinggi menggunakan top_n.
+6. Jika tidak berkaitan dengan Excel, gunakan document.
+7. Jika membutuhkan Excel dan PDF, gunakan both.
 8. Jangan mengarang nama kolom.
-9. Keluarkan JSON saja.
+9. Keluarkan JSON valid saja.
 """
 
-    response = chat(
-        model=LLM_MODEL,
-        format="json",
+    response = ask_konektika(
         messages=[
             {
                 "role": "user",
@@ -444,7 +638,16 @@ Aturan:
         ]
     )
 
-    return json.loads(response.message.content)
+    # Mengantisipasi JSON yang dibungkus markdown
+    response = response.strip()
+
+    response = re.sub(
+        r"^```(?:json)?\s*|\s*```$",
+        "",
+        response
+    )
+
+    return json.loads(response)
 
 
 # =========================================================
@@ -692,10 +895,40 @@ def analyze_excel(plan, excel_data):
 # 9. GENERATE ANSWER
 # =========================================================
 
+# def generate_answer(question, context):
+
+#     prompt = f"""
+# Anda adalah ORBIT, asisten admin dokumen.
+
+# Jawab pertanyaan berdasarkan konteks dokumen berikut.
+
+# Aturan:
+# - Gunakan bahasa Indonesia.
+# - Jawab dengan jelas dan profesional.
+# - Jangan mengarang informasi.
+# - Jika informasi tidak ditemukan, katakan tidak ditemukan.
+# - Sebutkan nama file dan halaman jika tersedia.
+
+# Konteks:
+# {context}
+
+# Pertanyaan:
+# {question}
+# """
+
+#     response = chat(
+#         model=LLM_MODEL,
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": prompt
+#             }
+#         ]
+#     )
 def generate_answer(question, context):
 
     prompt = f"""
-Anda adalah Yanto, asisten admin dokumen.
+Anda adalah ORBIT, asisten admin dokumen.
 
 Jawab pertanyaan berdasarkan konteks dokumen berikut.
 
@@ -713,8 +946,7 @@ Pertanyaan:
 {question}
 """
 
-    response = chat(
-        model=LLM_MODEL,
+    return stream_konektika(
         messages=[
             {
                 "role": "user",
@@ -726,34 +958,68 @@ Pertanyaan:
     return response.message.content
 
 
+# def explain_excel_result(question, dataset_key, result):
+
+#     result_text = result.to_string(index=False)
+
+#     prompt = f"""
+# Anda adalah ORBIT, asisten admin dan data analyst.
+
+# Jelaskan hasil analisis Excel berikut dalam bahasa Indonesia.
+
+# Pertanyaan:
+# {question}
+
+# Sumber data:
+# {dataset_key}
+
+# Hasil perhitungan Pandas:
+# {result_text}
+
+# Aturan:
+# - Gunakan angka hasil perhitungan apa adanya.
+# - Jangan mengubah atau mengarang angka.
+# - Jelaskan kesimpulan secara singkat.
+# - Jika hasil berupa tabel, jelaskan poin pentingnya.
+# - Sebutkan bahwa hasil berasal dari file Excel.
+# """
+
+#     response = chat(
+#         model=LLM_MODEL,
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": prompt
+#             }
+#         ]
+#     )
 def explain_excel_result(question, dataset_key, result):
 
     result_text = result.to_string(index=False)
 
     prompt = f"""
-Anda adalah Yanto, asisten admin dan data analyst.
+    Anda adalah ORBIT, asisten admin dan data analyst.
 
-Jelaskan hasil analisis Excel berikut dalam bahasa Indonesia.
+    Jelaskan hasil analisis Excel berikut dalam bahasa Indonesia.
 
-Pertanyaan:
-{question}
+    Pertanyaan:
+    {question}
 
-Sumber data:
-{dataset_key}
+    Sumber data:
+    {dataset_key}
 
-Hasil perhitungan Pandas:
-{result_text}
+    Hasil perhitungan Pandas:
+    {result_text}
 
-Aturan:
-- Gunakan angka hasil perhitungan apa adanya.
-- Jangan mengubah atau mengarang angka.
-- Jelaskan kesimpulan secara singkat.
-- Jika hasil berupa tabel, jelaskan poin pentingnya.
-- Sebutkan bahwa hasil berasal dari file Excel.
-"""
+    Aturan:
+    - Gunakan angka hasil perhitungan apa adanya.
+    - Jangan mengubah atau mengarang angka.
+    - Jelaskan kesimpulan secara singkat.
+    - Jika hasil berupa tabel, jelaskan poin pentingnya.
+    - Sebutkan bahwa hasil berasal dari file Excel.
+    """
 
-    response = chat(
-        model=LLM_MODEL,
+    return stream_konektika(
         messages=[
             {
                 "role": "user",
@@ -763,41 +1029,6 @@ Aturan:
     )
 
     return response.message.content
-
-# =========================================================
-# Add. Buat pencarian PO langsung dengan Pandas
-# =========================================================
-
-# Old Data vvvv
-# def search_po(po_number, excel_data):
-
-#     results = []
-
-#     for dataset_key, df in excel_data.items():
-
-#         if "No PO" not in df.columns:
-#             continue
-
-#         matched = df[
-#             df["No PO"].astype(str).str.strip()
-#             == str(po_number).strip()
-#         ]
-
-#         if not matched.empty:
-
-#             result = matched.copy()
-
-#             result["Source Excel"] = dataset_key
-
-#             results.append(result)
-
-#     if not results:
-#         return None
-
-#     return pd.concat(
-#         results,
-#         ignore_index=True
-#     )
 
 def normalize_po(value):
     if pd.isna(value):
@@ -839,7 +1070,7 @@ def search_po(po_number, excel_data):
 # 10. STREAMLIT INTERFACE
 # =========================================================
 
-st.title("📁 Yanto - Admin Dokumen")
+st.title("📁 ORBIT - Operational Records & Business Intelligence Technology")
 st.caption(
     "Asisten AI untuk pencarian dokumen PDF."
 )
@@ -861,16 +1092,6 @@ with st.spinner("Membaca dokumen PDF"):
         vectorstore,
         chunks
     )
-
-# with st.expander("DEBUG DATA EXCEL", expanded=True):
-
-#     for dataset_key, df in excel_data.items():
-
-#         st.write("Nama Dataset:", dataset_key)
-#         st.write("Nama Kolom:", list(df.columns))
-#         st.write("Jumlah Baris:", len(df))
-
-#         st.dataframe(df.head(5))
 
 # =========================================================
 # 11. SIDEBAR INFORMATION
@@ -907,21 +1128,6 @@ st.sidebar.metric(
     "New Embeddings",
     new_embeddings
 )
-
-# with st.sidebar.expander("📂 Daftar Dokumen PDF"):
-#     for file_path in pdf_files:
-#         st.write(os.path.basename(file_path))
-
-# with st.sidebar.expander("📊 Daftar File Excel"):
-#     for file_path in excel_files:
-#         st.write(os.path.basename(file_path))
-
-# with st.sidebar.expander("📑 Struktur Excel"):
-#     for dataset_key, df in excel_data.items():
-
-#         st.write(f"**{dataset_key}**")
-#         st.write(f"Baris: {len(df)}")
-#         st.write(f"Kolom: {', '.join(map(str, df.columns))}")
 
 # =========================================================
 # 12. CHAT INTERFACE
@@ -1069,10 +1275,17 @@ if user_query:
 
                     else:
 
-                        answer = explain_excel_result(
-                            user_query,
-                            plan.get("dataset"),
-                            result_table
+                        # answer = explain_excel_result(
+                        #     user_query,
+                        #     plan.get("dataset"),
+                        #     result_table
+                        # )
+                        answer = st.write_stream(
+                            explain_excel_result(
+                                user_query,
+                                plan.get("dataset"),
+                                result_table
+                            )
                         )
 
                         st.markdown("### 📊 Hasil Analisis Excel")
@@ -1094,11 +1307,6 @@ if user_query:
 
                     with st.spinner("Mencari informasi dokumen..."):
 
-                        # context, sources = retrieve_documents(
-                        #     vectorstore,
-                        #     user_query,
-                        #     k=5
-                        # )
                         context, sources = retrieve_documents(
                             vectorstore,
                             user_query,
@@ -1106,9 +1314,15 @@ if user_query:
                         )
 
 
-                        document_answer = generate_answer(
-                            user_query,
-                            context
+                        # document_answer = generate_answer(
+                        #     user_query,
+                        #     context
+                        # )
+                        document_answer = st.write_stream(
+                            generate_answer(
+                                user_query,
+                                context
+                            )
                         )
 
                     if source_type == "both":
