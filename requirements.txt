@@ -9,3 +9,4 @@ openai
 langchain-huggingface
 sentence-transformers
 openai
+openpyxl
