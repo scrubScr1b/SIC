@@ -18,33 +18,6 @@ from langchain_chroma import Chroma
 from openai import OpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 
-
-# =========================================================
-# 1. CONFIGURATION
-# =========================================================
-
-# st.set_page_config(
-#     page_title="ORBIT - Admin Dokumen",
-#     page_icon="📁",
-#     layout="wide"
-# )
-
-# DATA_DIR = "Data"
-# CHROMA_DIR = "chroma_db"
-
-# LLM_MODEL = "llama3.2:latest"
-# EMBEDDING_MODEL = "nomic-embed-text"
-
-# COLLECTION_NAME = "ORBIT_admin_documents"
-
-# # CONFIGURATION
-
-# CHUNK_SIZE = 1000
-# CHUNK_OVERLAP = 150
-
-# # CHUNK_SIZE = 2500
-# # CHUNK_OVERLAP = 300
-
 # =========================================================
 # 1. CONFIGURATION
 # =========================================================
@@ -323,26 +296,6 @@ def create_chunks(pdf_docs, excel_docs):
 
     return chunks
 
-
-# =========================================================
-# 5. CREATE / UPDATE CHROMA DATABASE
-# =========================================================
-
-# @st.cache_resource(show_spinner=False)
-# def get_vectorstore():
-
-#     embeddings = OllamaEmbeddings(
-#         model=EMBEDDING_MODEL
-#     )
-
-#     vectorstore = Chroma(
-#         collection_name=COLLECTION_NAME,
-#         embedding_function=embeddings,
-#         persist_directory=CHROMA_DIR
-#     )
-
-#     return vectorstore
-
 @st.cache_resource(show_spinner=False)
 def get_vectorstore():
 
@@ -492,50 +445,6 @@ def get_unique_sources(sources):
             unique_sources.append(metadata)
 
     return unique_sources
-
-# =========================================================
-# CHECKING INDEXED DOCUMENTS
-# =========================================================
-
-# def check_indexed_documents(vectorstore):
-
-#     all_data = vectorstore.get(
-#         include=["metadatas"]
-#     )
-
-#     sources = set()
-
-#     for metadata in all_data["metadatas"]:
-#         if metadata:
-#             sources.add(metadata.get("source", "Unknown"))
-
-#     result = {
-#         "total_chunks": len(all_data["metadatas"]),
-#         "total_files": len(sources),
-#         "files": sorted(sources)
-#     }
-
-#     return result
-
-# vectorstore = get_vectorstore()
-
-# index_info = check_indexed_documents(vectorstore)
-
-# st.sidebar.markdown("### 📚 Database ORBIT")
-
-# st.sidebar.metric(
-#     "Total Indexed Files",
-#     index_info["total_files"]
-# )
-
-# st.sidebar.metric(
-#     "Total Indexed Chunks",
-#     index_info["total_chunks"]
-# )
-
-# with st.sidebar.expander("Lihat daftar dokumen"):
-#     for file in index_info["files"]:
-#         st.write(file)
 
 # =========================================================
 # 4. CREATE ANALYSIS PLAN USING KONEKTIKA
@@ -870,41 +779,6 @@ def analyze_excel(plan, excel_data):
 
     return result, None
 
-
-# =========================================================
-# 9. GENERATE ANSWER
-# =========================================================
-
-# def generate_answer(question, context):
-
-#     prompt = f"""
-# Anda adalah ORBIT, asisten admin dokumen.
-
-# Jawab pertanyaan berdasarkan konteks dokumen berikut.
-
-# Aturan:
-# - Gunakan bahasa Indonesia.
-# - Jawab dengan jelas dan profesional.
-# - Jangan mengarang informasi.
-# - Jika informasi tidak ditemukan, katakan tidak ditemukan.
-# - Sebutkan nama file dan halaman jika tersedia.
-
-# Konteks:
-# {context}
-
-# Pertanyaan:
-# {question}
-# """
-
-#     response = chat(
-#         model=LLM_MODEL,
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": prompt
-#             }
-#         ]
-#     )
 def generate_answer(question, context):
 
     prompt = f"""
@@ -937,42 +811,6 @@ Pertanyaan:
 
     return response.message.content
 
-
-# def explain_excel_result(question, dataset_key, result):
-
-#     result_text = result.to_string(index=False)
-
-#     prompt = f"""
-# Anda adalah ORBIT, asisten admin dan data analyst.
-
-# Jelaskan hasil analisis Excel berikut dalam bahasa Indonesia.
-
-# Pertanyaan:
-# {question}
-
-# Sumber data:
-# {dataset_key}
-
-# Hasil perhitungan Pandas:
-# {result_text}
-
-# Aturan:
-# - Gunakan angka hasil perhitungan apa adanya.
-# - Jangan mengubah atau mengarang angka.
-# - Jelaskan kesimpulan secara singkat.
-# - Jika hasil berupa tabel, jelaskan poin pentingnya.
-# - Sebutkan bahwa hasil berasal dari file Excel.
-# """
-
-#     response = chat(
-#         model=LLM_MODEL,
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": prompt
-#             }
-#         ]
-#     )
 def explain_excel_result(question, dataset_key, result):
 
     result_text = result.to_string(index=False)
@@ -1208,20 +1046,6 @@ if user_query:
 
             else:
 
-                # =====================================
-                # LANJUTKAN PROSES AI / RAG YANG LAMA
-                # =====================================
-
-                # Letakkan seluruh kode lama mulai dari:
-                # if excel_data:
-                #
-                # sampai proses generate answer
-                # di dalam blok else ini.
-
-                # -----------------------------
-                # DETERMINE QUERY TYPE
-                # -----------------------------
-
                 if excel_data:
 
                     with st.spinner("Memahami pertanyaan..."):
@@ -1300,11 +1124,6 @@ if user_query:
                             k=15
                         )
 
-
-                        # document_answer = generate_answer(
-                        #     user_query,
-                        #     context
-                        # )
                         document_answer = st.write_stream(
                             generate_answer(
                                 user_query,
@@ -1325,70 +1144,6 @@ if user_query:
 
                         answer = document_answer
 
-                    # if sources:
-
-                    #     # st.markdown("### 📚 Referensi Dokumen")
-
-                    #     # for source in sources:
-
-                    #     #     metadata = source.metadata
-
-                    #     #     if metadata.get("file_type") == "Excel":
-
-                    #     #         st.caption(
-                    #     #             f"Excel: {metadata.get('source')} | "
-                    #     #             f"Sheet: {metadata.get('sheet')} | "
-                    #     #             f"Baris: {metadata.get('row')}"
-                    #     #         )
-
-                    #     #     else:
-
-                    #     #         st.caption(
-                    #     #             f"PDF: {metadata.get('source')} | "
-                    #     #             f"Halaman: {metadata.get('page', '-')}"
-                    #     #         )
-
-                    #     unique_sources = get_unique_sources(sources)
-
-                    #     st.markdown("### 📚 Referensi Dokumen")
-
-                    #     for metadata in unique_sources:
-
-                    #         if metadata.get("file_type") == "Excel":
-
-                    #             st.caption(
-                    #                 f"Excel: {metadata.get('source')} | "
-                    #                 f"Sheet: {metadata.get('sheet')} | "
-                    #                 f"Baris: {metadata.get('row')}"
-                    #             )
-
-                    #         else:
-
-                    #             page = metadata.get("page")
-
-                    #             # Nomor halaman PDF dimulai dari 1
-                    #             page_number = page + 1 if page is not None else "-"
-
-                    #             st.caption(
-                    #                 f"PDF: {metadata.get('source')} | "
-                    #                 f"Halaman: {page_number}"
-                    #             )
-
-            # -----------------------------
-            # DISPLAY ANSWER
-            # -----------------------------
-
-            # st.markdown(answer)
-
-            # st.session_state.messages.append({
-            #     "role": "assistant",
-            #     "content": answer,
-            #     "table": (
-            #         result_table.to_dict(orient="records")
-            #         if result_table is not None
-            #         else None
-            #     )
-            # })
             if not answer_displayed and answer:
 
                 st.markdown(answer)
