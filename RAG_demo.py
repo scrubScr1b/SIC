@@ -1052,7 +1052,7 @@ def search_po(po_number, excel_data):
 
 st.title("🛰️ ORBIT AI AGENT")
 st.caption(
-    "Operational Records & Business Intelligence Technology - Asisten AI untuk pencarian & analisa dokumen PDF"
+    "Operational Records & Business Intelligence Technology - Asisten AI untuk pencarian & analisa"
 )
 
 with st.spinner("Membaca dokumen PDF"):
